@@ -26,6 +26,9 @@ type App struct {
 	isSending    bool
 	sendFiles    []string
 
+	activeConnMu sync.Mutex
+	activeConn   net.Conn
+
 	// Settings
 	settings Settings
 }
@@ -191,6 +194,7 @@ func (a *App) StartSending(filePath string) error {
 				})
 			},
 			OnComplete: func(peerAddr string) {
+				a.clearConn()
 				baseName := filepath.Base(filePath)
 				_ = addHistoryEntry(HistoryEntry{
 					FileName:  baseName,
@@ -205,6 +209,7 @@ func (a *App) StartSending(filePath string) error {
 				})
 			},
 			OnError: func(peerAddr string, err error) {
+				a.clearConn()
 				baseName := filepath.Base(filePath)
 				_ = addHistoryEntry(HistoryEntry{
 					FileName:  baseName,
@@ -219,7 +224,8 @@ func (a *App) StartSending(filePath string) error {
 					"direction": "send",
 				})
 			},
-			Ctx: ctx,
+			OnTransferStart: a.setConn,
+			Ctx:             ctx,
 		}
 
 		if err := transfer.StartSenderWithOptions(filePath, opts); err != nil {
@@ -247,7 +253,7 @@ func (a *App) StartSending(filePath string) error {
 	}
 }
 
-// StopSending stops the active sender
+// StopSending stops the active sender listener
 func (a *App) StopSending() {
 	a.senderMu.Lock()
 	defer a.senderMu.Unlock()
@@ -257,6 +263,28 @@ func (a *App) StopSending() {
 		a.senderCancel = nil
 		a.isSending = false
 	}
+}
+
+// CancelTransfer stops the active file transfer connection
+func (a *App) CancelTransfer() {
+	a.activeConnMu.Lock()
+	defer a.activeConnMu.Unlock()
+	if a.activeConn != nil {
+		a.activeConn.Close()
+		a.activeConn = nil
+	}
+}
+
+func (a *App) setConn(c net.Conn) {
+	a.activeConnMu.Lock()
+	a.activeConn = c
+	a.activeConnMu.Unlock()
+}
+
+func (a *App) clearConn() {
+	a.activeConnMu.Lock()
+	a.activeConn = nil
+	a.activeConnMu.Unlock()
 }
 
 // IsSending returns whether we are currently sending
@@ -328,6 +356,7 @@ func (a *App) ConnectToReceive(address string) error {
 				})
 			},
 			OnComplete: func(fileName string) {
+				a.clearConn()
 				_ = addHistoryEntry(HistoryEntry{
 					FileName:  fileName,
 					Direction: "receive",
@@ -341,6 +370,7 @@ func (a *App) ConnectToReceive(address string) error {
 				})
 			},
 			OnError: func(err error) {
+				a.clearConn()
 				_ = addHistoryEntry(HistoryEntry{
 					Direction: "receive",
 					PeerName:  address,
@@ -353,14 +383,13 @@ func (a *App) ConnectToReceive(address string) error {
 					"direction": "receive",
 				})
 			},
+			OnTransferStart: a.setConn,
 		}
 
 		if err := transfer.ReceiveConnectWithOptions(address, opts); err != nil {
-			wailsRuntime.EventsEmit(a.ctx, "transfer:error", map[string]interface{}{
-				"error":     err.Error(),
-				"peer_addr": address,
-				"direction": "receive",
-			})
+			if opts.OnError != nil {
+				opts.OnError(err)
+			}
 		}
 	}()
 
