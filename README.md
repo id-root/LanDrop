@@ -166,5 +166,5 @@ All transfers use TLS over TCP with this protocol:
 
 ## License
 
-MIT
+MIT [LICENSE](LICENSE)
 
