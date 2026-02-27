@@ -1,10 +1,13 @@
 # Binaries
-LanDrop
-LanDrop.exe
+synapse
+synapse.exe
 *.exe
 *.dll
 *.so
 *.dylib
+
+# Build output
+build/
 
 # Test binary, built with `go test -c`
 *.test
@@ -21,6 +24,13 @@ LanDrop.exe
 ehthumbs.db
 Thumbs.db
 
-# IDE specific settings (Optional, but recommended)
+# IDE specific settings
 .vscode/
 .idea/
+
+# Wails auto-generated bindings (regenerated on build)
+frontend/wailsjs/
+
+# Synapse runtime files
+received_files/
+*.log
