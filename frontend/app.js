@@ -360,15 +360,32 @@ document.addEventListener('DOMContentLoaded', () => {
             btnStopSend.style.display = 'none';
         });
 
+        let transferStats = { time: 0, bytes: 0, speedText: '— MB/s' };
+
         // Transfer progress
         window.runtime.EventsOn('transfer:progress', (data) => {
             const overlay = document.getElementById('transfer-overlay');
-            overlay.style.display = 'block';
+            if (overlay.style.display !== 'block') {
+                overlay.style.display = 'block';
+                transferStats = { time: Date.now(), bytes: data.bytes_sent, speedText: 'Calculating...' };
+                document.getElementById('transfer-speed').textContent = transferStats.speedText;
+            }
 
             const percent = data.total_bytes > 0
                 ? Math.round((data.bytes_sent / data.total_bytes) * 100)
                 : 0;
 
+            const now = Date.now();
+            const elapsed = (now - transferStats.time) / 1000;
+            if (elapsed >= 0.5) {
+                const bytesDiff = data.bytes_sent - transferStats.bytes;
+                const speed = bytesDiff / elapsed;
+                transferStats.speedText = `${formatBytes(speed)}/s`;
+                transferStats.time = now;
+                transferStats.bytes = data.bytes_sent;
+            }
+
+            document.getElementById('transfer-speed').textContent = transferStats.speedText;
             document.getElementById('transfer-progress').style.width = `${percent}%`;
             document.getElementById('transfer-file').textContent = data.file_name || '—';
             document.getElementById('transfer-bytes').textContent =
@@ -412,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Cancel transfer button
     document.getElementById('btn-cancel-transfer').addEventListener('click', () => {
-        window.go.gui.App.StopSending();
+        window.go.gui.App.CancelTransfer();
         document.getElementById('transfer-overlay').style.display = 'none';
     });
 
