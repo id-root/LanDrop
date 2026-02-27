@@ -32,12 +32,13 @@ type ProgressInfo struct {
 
 // SenderOptions configures the sender behavior
 type SenderOptions struct {
-	AllowConn  func(string) bool
-	PortChan   chan<- int
-	OnProgress func(ProgressInfo)
-	OnComplete func(peerAddr string)
-	OnError    func(peerAddr string, err error)
-	Ctx        context.Context
+	AllowConn       func(string) bool
+	PortChan        chan<- int
+	OnProgress      func(ProgressInfo)
+	OnComplete      func(peerAddr string)
+	OnError         func(peerAddr string, err error)
+	OnTransferStart func(net.Conn)
+	Ctx             context.Context
 }
 
 // StartSender starts the file transfer process as a sender.
@@ -161,6 +162,10 @@ func StartSenderWithOptions(inputPath string, opts SenderOptions) error {
 			if !approved {
 				ui.Info("Connection rejected.")
 				return
+			}
+
+			if opts.OnTransferStart != nil {
+				opts.OnTransferStart(c)
 			}
 
 			ui.Success("Starting transfer to %s", c.RemoteAddr())
